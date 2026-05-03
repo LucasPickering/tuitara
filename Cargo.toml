@@ -12,6 +12,14 @@ version = "0.1.0"
 rust-version = "1.95.0"
 
 [dependencies]
+derive_more = {version = "2.1.1", default-features = false, features = ["debug"]}
+itertools = {version = "0.14.0", default-features = false}
+ratatui = {version = "0.30.0", default-features = false}
+terminput = {version = "0.5.14", default-features = false}
+tracing = {version = "0.1.44", default-features = false, features = ["attributes"]}
+
+[dev-dependencies]
+rstest = {version = "0.26.1", default-features = false}
 
 [lints.rust]
 async_fn_in_trait = "allow"
