@@ -85,6 +85,8 @@ pub trait Component<X: ComponentExtra = ()>: ToChild<X> {
 
 /// Additional application-specific data attached to a component
 pub trait ComponentExtra {
+    /// TODO
+    type Action;
     /// Additional data available in [UpdateContext], which is passed to each
     /// [Component::update] call
     type UpdateContext;
@@ -95,6 +97,7 @@ pub trait ComponentExtra {
 /// Empty [ComponentExtra] implementation, for applications that don't need to
 /// persist state of pass any custom state to [Component::update].
 impl ComponentExtra for () {
+    type Action = ();
     type UpdateContext = ();
     type PersistentStore = ();
 }

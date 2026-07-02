@@ -27,7 +27,7 @@ use terminput::ScrollDirection;
 ///
 /// TODO should this be a trait instead of an enum?
 #[derive(Debug)]
-pub enum Event<Broadcast = (), Other = ()> {
+pub enum Event<Action, Broadcast, Other> {
     /// TODO
     Broadcast(Broadcast),
 
@@ -46,17 +46,17 @@ pub enum Event<Broadcast = (), Other = ()> {
     /// Input from the user, which may or may not be bound to an action. Most
     /// components just care about the action, but some require raw input
     /// TODO explain where the action is stored
-    Input(InputEvent),
+    Input(InputEvent<Action>),
 
     /// TODO
     Other(Other),
 }
 
-impl<Broadcast, Other> Event<Broadcast, Other> {
+impl<Action, Broadcast, Other> Event<Action, Broadcast, Other> {
     /// Convert to [EventMatch] so its methods can be used to match the event
     ///
     /// TODO explain more
-    pub fn m(self) -> EventMatch<Broadcast, Other> {
+    pub fn m(self) -> EventMatch<Action, Broadcast, Other> {
         Some(self).into()
     }
 }
@@ -64,15 +64,21 @@ impl<Broadcast, Other> Event<Broadcast, Other> {
 /// Wrapper for matching an event to various expected cases.
 ///
 /// Use the `From` impls to convert from `Event` and to `Option<Event>`.
-pub struct EventMatch<Broadcast = (), Other = ()> {
-    event: Option<Event<Broadcast, Other>>,
+pub struct EventMatch<Action, Broadcast, Other> {
+    event: Option<Event<Action, Broadcast, Other>>,
 }
 
-impl<Broadcast: Clone, Other> EventMatch<Broadcast, Other> {
+impl<Action, Broadcast, Other> EventMatch<Action, Broadcast, Other>
+where
+    Action: Copy,
+    Broadcast: Clone,
+{
     /// Match and handle any event
     pub fn any(
         self,
-        f: impl FnOnce(Event<Broadcast, Other>) -> Option<Event<Broadcast, Other>>,
+        f: impl FnOnce(
+            Event<Action, Broadcast, Other>,
+        ) -> Option<Event<Action, Broadcast, Other>>,
     ) -> Self {
         let Some(event) = self.event else {
             return self;
@@ -130,7 +136,7 @@ impl<Broadcast: Clone, Other> EventMatch<Broadcast, Other> {
     /// Handle any key input event bound to an action. If the action is
     /// unhandled and the event should continue to be propagated, set the
     /// given flag.
-    pub fn action<Action>(self, f: impl FnOnce(Action, &mut Flag)) -> Self {
+    pub fn action(self, f: impl FnOnce(Action, &mut Flag)) -> Self {
         let Some(event) = self.event else {
             return self;
         };
@@ -188,14 +194,18 @@ impl<Broadcast: Clone, Other> EventMatch<Broadcast, Other> {
     }
 }
 
-impl From<EventMatch> for Option<Event> {
-    fn from(value: EventMatch) -> Self {
+impl<Action, Broadcast, Other> From<EventMatch<Action, Broadcast, Other>>
+    for Option<Event<Action, Broadcast, Other>>
+{
+    fn from(value: EventMatch<Action, Broadcast, Other>) -> Self {
         value.event
     }
 }
 
-impl From<Option<Event>> for EventMatch {
-    fn from(event: Option<Event>) -> Self {
+impl<Action, Broadcast, Other> From<Option<Event<Action, Broadcast, Other>>>
+    for EventMatch<Action, Broadcast, Other>
+{
+    fn from(event: Option<Event<Action, Broadcast, Other>>) -> Self {
         Self { event }
     }
 }
