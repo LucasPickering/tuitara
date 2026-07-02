@@ -1,6 +1,6 @@
 //! Buttons and button accessories
 
-use crate::view::{
+use crate::{
     Generate,
     common::fixed_select::{FixedSelect, FixedSelectItem},
     component::{Canvas, Component, ComponentId, Draw, DrawMetadata},

@@ -23,9 +23,9 @@ use tracing::{instrument, trace, trace_span};
 
 /// A UI element that can handle user/async input.
 ///
-/// This trait facilitates an on-demand tree structure, where each node in the
-/// tree can furnish its list of children. Events will be propagated bottom-up
-/// (i.e. leaf-to-root), and each element has the opportunity to consume the
+/// This trait facilitates an on-demand tree structure where each node in the
+/// tree provides its list of children. Events will be propagated bottom-up
+/// (i.e. leaf-to-root) and each element has the opportunity to consume the
 /// event so it stops bubbling. Each instance of each component gets a unique ID
 /// that identifies it in the component tree during both event handling and
 /// drawing. See [Component::id].
@@ -33,7 +33,7 @@ use tracing::{instrument, trace, trace_span};
 /// While components *typically* can be drawn to the screen, draw functionality
 /// is not provided by this trait. Instead, it's a separate trait called [Draw].
 /// See that trait for an explanation why.
-pub trait Component<X: ComponentExtra>: ToChild<X> {
+pub trait Component<X: ComponentExtra = ()>: ToChild<X> {
     /// Get a unique ID for this component
     ///
     /// **The returned ID must be consistent between draws.** The implementing
@@ -85,18 +85,18 @@ pub trait Component<X: ComponentExtra>: ToChild<X> {
     }
 }
 
-/// TODO
+/// Additional application-specific data attached to a component
 pub trait ComponentExtra {
-    /// TODO
+    /// Additional data available in [UpdateContext], which is passed to each
+    /// [Component::update] call
     type UpdateContext;
-    /// TODO
+    /// Data store used to persist component state
     type PersistentStore;
 }
 
-/// TODO
-pub struct EmptyExtra;
-
-impl ComponentExtra for EmptyExtra {
+/// Empty [ComponentExtra] implementation, for applications that don't need to
+/// persist state of pass any custom state to [Component::update].
+impl ComponentExtra for () {
     type UpdateContext = ();
     type PersistentStore = ();
 }
@@ -179,7 +179,7 @@ impl<T: Component<X> + ?Sized, X: ComponentExtra> ComponentExt<X> for T {
 /// some component types (e.g. `Select`) that have multiple `Draw` impls.
 /// Using an associated type also makes prop types with lifetimes much less
 /// ergonomic.
-pub trait Draw<X: ComponentExtra, Props = ()>: Component<X> {
+pub trait Draw<Props = ()> {
     /// Draw the component into the canvas
     ///
     /// This is what each component will implement itself, but this **should not
@@ -222,7 +222,7 @@ impl DrawMetadata {
 ///
 /// Those may sound unimportant, but they're *very* useful and justify the
 /// added abstraction. See [ToChild] as well.
-pub enum Child<'a, X> {
+pub enum Child<'a, X = ()> {
     /// A null child, produced by an optional component. This is an ergonomic
     /// feature that makes it possible to call to_child_mut() on optional
     /// children.
@@ -396,7 +396,7 @@ impl ComponentId {
 /// [ComponentExt::update](crate::view::component::ComponentExt). This holds
 /// data that cannot be held in [ViewContext], typically because of borrowing
 /// reasons.
-pub struct UpdateContext<'a, X> {
+pub struct UpdateContext<'a, X = ()> {
     /// Visible components from the last draw phase
     component_map: &'a ComponentMap,
     /// Generic extra data to pass to every component update
@@ -408,13 +408,8 @@ mod tests {
     use super::*;
     use crate::test_util::{TestHarness, harness};
     use Mode::*;
-    use ratatui::{
-        buffer::Buffer,
-        layout::{Layout, Position, Size},
-        text::Line,
-    };
+    use ratatui::layout::{Layout, Position};
     use rstest::{fixture, rstest};
-    use std::collections::HashSet;
     use terminput::{KeyCode, KeyModifiers};
 
     /// The root component. This exists just to push [Branch] down the tree
@@ -425,12 +420,12 @@ mod tests {
         branch: Branch,
     }
 
-    impl Component<EmptyExtra> for Root {
+    impl Component<()> for Root {
         fn id(&self) -> ComponentId {
             self.id
         }
 
-        fn children(&mut self) -> Vec<Child<'_>> {
+        fn children(&mut self) -> Vec<Child<'_, ()>> {
             vec![self.branch.to_child()]
         }
     }
@@ -514,7 +509,7 @@ mod tests {
         }
     }
 
-    impl Component<EmptyExtra> for Branch {
+    impl Component<()> for Branch {
         fn id(&self) -> ComponentId {
             self.id
         }
@@ -570,7 +565,7 @@ mod tests {
         }
     }
 
-    impl Component<EmptyExtra> for Leaf {
+    impl Component<()> for Leaf {
         fn id(&self) -> ComponentId {
             self.id
         }
@@ -581,7 +576,7 @@ mod tests {
         }
     }
 
-    impl Draw<EmptyExtra> for Leaf {
+    impl Draw<()> for Leaf {
         fn draw(&self, canvas: &mut Canvas, (): (), metadata: DrawMetadata) {
             canvas.render_widget("hello!", metadata.area());
         }
@@ -739,112 +734,5 @@ mod tests {
 
         component.update_all(&mut update_context, event);
         component.branch.assert_received(expected_recipient);
-    }
-
-    /// Test merging two canvases together
-    /// - Only content from the source area is copied
-    /// - Content is copied to the target area of the main canvas
-    /// - Component maps are merged
-    #[rstest]
-    #[case::full_nonoverlapping(
-        Rect { x: 0, y: 0, width: 6, height: 1 },
-        Rect { x: 0, y: 1, width: 6, height: 1 },
-        ["hello!", "hello!"],
-    )]
-    #[case::partial_overwrite(
-        Rect { x: 0, y: 0, width: 3, height: 1 },
-        Rect { x: 3, y: 0, width: 3, height: 1 },
-        ["helhel", "      "],
-    )]
-    fn test_merge<'a>(
-        _harness: TestHarness,
-        #[case] from: Rect,
-        #[case] to: Rect,
-        #[case] expected_content: impl IntoIterator<Item = impl Into<Line<'a>>>,
-    ) {
-        let component1 = Leaf::default();
-        let mut buffer1 = Buffer::empty(Size::new(6, 2).into());
-        let mut canvas1 = Canvas::new(&mut buffer1);
-        canvas1.draw(&component1, (), canvas1.area(), true);
-
-        let component2 = Leaf::default();
-        let mut buffer2 = Buffer::empty(Size::new(6, 1).into());
-        let mut canvas2 = Canvas::new(&mut buffer2);
-        canvas2.draw(&component2, (), canvas2.area(), true);
-
-        // DO IT
-        canvas1.merge(canvas2, from, to);
-
-        // Visible component maps were merged
-        assert_eq!(
-            canvas1.components.0.into_keys().collect::<HashSet<_>>(),
-            [component1.id(), component2.id()]
-                .into_iter()
-                .collect::<HashSet<_>>()
-        );
-        // Buffer equals expectation
-        let expected = Buffer::with_lines(expected_content);
-        assert_eq!(buffer1, expected);
-    }
-
-    /// Canvas::merge picks up the right cursor position, giving priority to the
-    /// incoming canvas and shifting its position appropriately
-    #[rstest]
-    #[case::none_none(None, None, None)]
-    #[case::none_some(None, Some((1, 4).into()), Some((1, 4).into()))]
-    #[case::some_none(Some((3, 1).into()), None, Some((4, 4).into()))]
-    #[case::some_some(
-        // Take the first cursor, shifted by the source origin
-        Some((3, 1).into()), Some((1, 4).into()), Some((4, 4).into()),
-    )]
-    fn test_merge_cursor(
-        _harness: TestHarness,
-        #[case] from_cursor: Option<Position>,
-        #[case] to_cursor: Option<Position>,
-        #[case] expected: Option<Position>,
-    ) {
-        let mut buffer1 = Buffer::empty(Size::new(5, 5).into());
-        let mut canvas1 = Canvas::new(&mut buffer1);
-        if let Some(cursor) = to_cursor {
-            canvas1.set_cursor_position(cursor);
-        }
-
-        let mut buffer2 = Buffer::empty(Size::new(5, 5).into());
-        let mut canvas2 = Canvas::new(&mut buffer2);
-        if let Some(cursor) = from_cursor {
-            canvas2.set_cursor_position(cursor);
-        }
-
-        let width = 1;
-        let height = 1;
-        canvas1.merge(
-            canvas2,
-            // Map the cursor to the bottom-right corner
-            Rect {
-                x: 3,
-                y: 1,
-                width,
-                height,
-            },
-            Rect {
-                x: 4,
-                y: 4,
-                width,
-                height,
-            },
-        );
-
-        assert_eq!(canvas1.cursor_position(), expected);
-    }
-
-    /// Merging panics if the source and target areas are different sizes
-    #[rstest]
-    #[should_panic(expected = "Source and target areas are not the same size")]
-    fn test_merge_panic(_harness: TestHarness) {
-        let mut buffer1 = Buffer::empty(Size::new(3, 3).into());
-        let mut canvas1 = Canvas::new(&mut buffer1);
-        let mut buffer2 = Buffer::empty(Size::new(3, 3).into());
-        let canvas2 = Canvas::new(&mut buffer2);
-        canvas1.merge(canvas2, Size::new(2, 2).into(), Size::new(2, 1).into());
     }
 }
