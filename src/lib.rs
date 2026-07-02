@@ -1,6 +1,5 @@
 //! TODO
 
-mod actions;
 mod canvas;
 mod common;
 mod component;
@@ -13,7 +12,6 @@ mod util;
 pub use canvas::Canvas;
 
 use crate::{
-    actions::MenuItem,
     canvas::ComponentMap,
     event::{Event, EventMatch},
     input::InputEvent,
@@ -56,15 +54,6 @@ pub trait Component<X: ComponentExtra>: ToChild<X> {
         event: Event,
     ) -> EventMatch {
         event.m()
-    }
-
-    /// Provide a list of actions that are accessible from the actions menu.
-    /// This list may be static (e.g. determined from an enum) or dynamic. When
-    /// the user opens the actions menu, all available actions for all
-    /// **focused** components will be collected and show in the menu. If an
-    /// action is selected, an event will be emitted with that action value.
-    fn menu(&self) -> Vec<MenuItem> {
-        Vec::new()
     }
 
     /// Persist state to the persistence store. This is called at the end of
@@ -129,17 +118,6 @@ pub trait ComponentExt<X: ComponentExtra>: Component<X> {
         position: Position,
     ) -> bool;
 
-    /// Collect all available menu actions from all **focused** descendents of
-    /// this component (including this component). This takes a mutable
-    /// reference so we don't have to duplicate the code that provides children;
-    /// it will *not* mutate anything.
-    fn collect_actions(
-        &mut self,
-        context: &UpdateContext<X::UpdateContext>,
-    ) -> Vec<MenuItem>
-    where
-        Self: Sized;
-
     /// Handle an event for this component *or* its children, starting at the
     /// lowest descendant. Recursively walk up the tree until a component
     /// consumes the event.
@@ -167,34 +145,6 @@ impl<T: Component<X> + ?Sized, X: ComponentExtra> ComponentExt<X> for T {
             .component_map
             .area(self)
             .is_some_and(|area| area.contains(position))
-    }
-
-    fn collect_actions(
-        &mut self,
-        context: &UpdateContext<X::UpdateContext>,
-    ) -> Vec<MenuItem>
-    where
-        Self: Sized,
-    {
-        fn inner<X: ComponentExtra>(
-            context: &UpdateContext<X::UpdateContext>,
-            items: &mut Vec<MenuItem>,
-            component: &mut dyn Component<X>,
-        ) {
-            // Only include actions from focused components
-            if context.component_map.has_focus(component) {
-                items.extend(component.menu());
-                for mut child in component.children() {
-                    if let Some(component) = child.component() {
-                        inner(context, items, component);
-                    }
-                }
-            }
-        }
-
-        let mut items = Vec::new();
-        inner(context, &mut items, self);
-        items
     }
 
     fn update_all(
