@@ -24,9 +24,8 @@ use ratatui::{
     text::Line,
 };
 use rstest::fixture;
-use slumber_config::{Action, Config};
-use slumber_util::Factory;
 use std::{
+    error::Error,
     fmt::Debug,
     iter, mem,
     ops::{Deref, DerefMut},
@@ -37,6 +36,37 @@ use terminput::{
     MouseEvent, MouseEventKind,
 };
 use tracing::trace_span;
+
+/// Assert a result is the `Err` variant and the stringified error *contains*
+/// the given message. The `Err` variant type must implement `Display`. The
+/// error will be formatted with its entire chain of sources, to make nested
+/// errors easy to match.
+#[track_caller]
+pub fn assert_err<T, E>(result: Result<T, E>, expected_error: &str)
+where
+    T: Debug,
+    E: 'static + Debug + Error,
+{
+    /// Stringify an error with all its causes
+    fn format_error_chain(error: impl Error) -> String {
+        let mut s = error.to_string();
+        let mut source = error.source();
+        while let Some(error) = source {
+            s.push_str(": ");
+            s.push_str(&error.to_string());
+            source = error.source();
+        }
+        s
+    }
+
+    let error = result.unwrap_err();
+    let actual = format_error_chain(error);
+    assert!(
+        actual.contains(expected_error),
+        "Expected error message to contain {expected_error:?}, but was: \
+        {actual:?}"
+    );
+}
 
 /// Get a test harness, with a clean terminal etc. See [TestHarness].
 #[fixture]

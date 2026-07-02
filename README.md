@@ -12,15 +12,27 @@
   - Drawing - Canvas
   - Theme/styling
   - State persistence
-- Input Action - includes config parsing
+- Input
+  - Key bindings - key codes and modifiers
+  - Action list is NOT provided - app has to map inputs to actions themself
 
-## Customizable Parts
+## What needs to be parameterized?
 
 - Events
   - Broadcast Events
   - `UpdateContext` - additional "global" state
-- Actions
-  - Input actions
-  - Common navigation actions should be provided?
+  - `Action` type on `InputEvent`
+- Input
+  - `Action` type
 - Components
-  - Provide default components like Select
+  - `UpdateContext`
+  - `PersistentStore`
+  - `Action`
+
+## Provided Components
+
+- Select
+- FixedSelect
+- Button
+- TextBox
+- Table

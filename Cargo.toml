@@ -11,15 +11,23 @@ version = "0.1.0"
 # Keep in sync w/ rust-toolchain.toml# TODO downgrade MSRV
 rust-version = "1.95.0"
 
+
 [dependencies]
 derive_more = {version = "2.1.1", default-features = false, features = ["debug"]}
+indexmap = "2.14.0"
 itertools = {version = "0.14.0", default-features = false}
 ratatui = {version = "0.30.0", default-features = false}
+serde = {version = "1.0.228", features = ["derive"], optional = true}
 terminput = {version = "0.5.14", default-features = false}
+thiserror = "2.0.18"
 tracing = {version = "0.1.44", default-features = false, features = ["attributes"]}
 
 [dev-dependencies]
 rstest = {version = "0.26.1", default-features = false}
+
+[features]
+default = ["serde"] # TODO remove serde from default?
+serde = ["dep:serde", "indexmap/serde"]
 
 [lints.rust]
 async_fn_in_trait = "allow"

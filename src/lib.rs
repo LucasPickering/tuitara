@@ -1,8 +1,6 @@
 //! TODO
 
 mod canvas;
-mod common;
-mod component;
 mod event;
 mod input;
 #[cfg(test)]
